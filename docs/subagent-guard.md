@@ -390,5 +390,5 @@ Without an independent Relay need, unaccounted primary work therefore reads as i
 
 The durable fix for that class is to make the guards treat "the primary is doing project-shaped work with zero `state/*.meta` files" as a suspicious state rather than an idle one.
 That would catch this class on any harness, including work created through `Bash`.
-This change fences only the Claude tool surface.
+This change fences the Claude and Pi tool surfaces, still one harness at a time.
 That is a separate change to `bin/fm-supervision-lib.sh` and `bin/fm-turnend-guard.sh` and is out of scope here.
