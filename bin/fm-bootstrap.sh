@@ -156,6 +156,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-x-lib.sh"
 # shellcheck source=bin/fm-backend.sh disable=SC1091
 . "$SCRIPT_DIR/fm-backend.sh"
+# shellcheck source=bin/fm-forge-lib.sh disable=SC1091
+. "$SCRIPT_DIR/fm-forge-lib.sh"
 # shellcheck source=bin/fm-remote-readiness-lib.sh disable=SC1091
 . "$SCRIPT_DIR/fm-remote-readiness-lib.sh"
 # fm-timing-lib.sh is inert unless FM_TIMING_LOG names a file, which only the
@@ -833,6 +835,7 @@ secondmate_handoff_detect() {
 install_cmd() {
   case "$1" in
     tmux|node|git|gh|curl|jq|orca|zellij) echo "brew install $1  # or the platform's package manager" ;;
+    glab) echo "brew install glab  # or see https://gitlab.com/gitlab-org/cli#installation" ;;
     cmux) echo "brew install --cask cmux  # or see https://cmux.com" ;;
     treehouse) echo "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh" ;;
     no-mistakes) echo "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh" ;;
@@ -859,12 +862,22 @@ missing_tool_diagnostic() {
   echo "MISSING: $tool (install: $(install_cmd "$tool"))"
 }
 
+# The configured forge selects which forge CLI (if any) the universal toolchain
+# requires and whether the GitHub auth probe fires at session start. github is
+# the default and keeps the current behavior; gitlab swaps gh/gh-axi for glab and
+# never needs GitHub auth; local needs no forge CLI and never raises NEEDS_GH_AUTH.
+# bin/fm-forge-lib.sh owns the config/forge contract and fm_forge_name.
+FORGE=$(fm_forge_name)
 # Required-tool detection follows the RESOLVED backend, not a one-size default:
 # a universal toolchain every home needs plus the backend-specific delta owned by
 # fm_backend_required_tools (bin/fm-backend.sh). So a herdr/zellij/cmux home is
 # never told tmux is missing, and only orca drops treehouse. A backend value with
 # no verified dependency set is reported before the universal checks continue.
-COMMON_TOOLS="node git gh no-mistakes gh-axi chrome-devtools-axi lavish-axi tasks-axi quota-axi"
+case "$FORGE" in
+  gitlab) COMMON_TOOLS="node git glab no-mistakes chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
+  local)  COMMON_TOOLS="node git no-mistakes chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
+  *)      COMMON_TOOLS="node git gh no-mistakes gh-axi chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
+esac
 BACKEND=$(fm_backend_name)
 BACKEND_VALID=1
 if ! BACKEND_TOOLS=$(fm_backend_required_tools "$BACKEND"); then
@@ -1289,7 +1302,11 @@ detect_local_config() {
 local_phase && detect_local_tools
 if network_phase; then
   __fm_timing_stamp=$(fm_timing_now_ms)
-  gh auth status >/dev/null 2>&1 || echo "NEEDS_GH_AUTH"
+  # The GitHub auth probe is core to the github forge only: a gitlab or local
+  # home must not need, probe, or report on GitHub authentication.
+  if [ "$FORGE" = github ]; then
+    gh auth status >/dev/null 2>&1 || echo "NEEDS_GH_AUTH"
+  fi
   fm_timing_record phase gh-auth "$__fm_timing_stamp"
 fi
 local_phase && detect_local_config
