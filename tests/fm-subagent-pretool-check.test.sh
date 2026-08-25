@@ -30,6 +30,16 @@ DELEGATION_TOOLS='Task Agent Workflow RemoteTrigger Monitor ScheduleWakeup SendM
 # Tools that must stay available: denying these would break ordinary work.
 PRESERVED_TOOLS='Bash Edit Read Write Skill ToolSearch WebFetch WebSearch NotebookEdit ReportFindings DesignSync PushNotification'
 
+# The concrete pi-subagents tool surface installed into a Pi primary by
+# pi-subagents 0.56.0. All three names are delegation-shaped and must be denied
+# exactly like the Claude delegation tools above.
+PI_SUBAGENT_TOOLS='subagent subagent_wait subagent_supervisor'
+
+# The Pi primary's own ordinary non-bash tools: firstmate's native tool surface
+# and the read-style builtins. These reach the same pi.on("tool_call", ...)
+# handler as the delegation tools and must keep passing.
+PI_PRIMARY_TOOLS='fm_watch_arm_pi fm_branch_outcomes web_search fetch_content get_search_content source_check read write edit'
+
 # Session-local todo-list tools. They match a delegation stem but create no
 # runnable work, so the guard's plan-only exclusion must allow them.
 PLAN_ONLY_TOOLS='TaskCreate TaskUpdate'
@@ -217,6 +227,23 @@ test_secondmate_home_is_in_scope() {
   pass "a marked secondmate home is guarded even though it is a linked worktree"
 }
 
+test_pi_primary_tool_surface_is_guarded() {
+  # pi-subagents installs a real delegation surface into the Pi primary schema.
+  # Every name must be denied by shape, exactly like the Claude tools, so a Pi
+  # primary cannot reach pi-subagents delegation instead of bin/fm-spawn.sh.
+  local tool
+  for tool in $PI_SUBAGENT_TOOLS; do
+    expect_deny "pi-subagents tool" "$tool"
+  done
+  # The same handler also sees every ordinary non-bash tool; those must pass.
+  # fm_* names are firstmate's own native tool surface, and read/write/edit plus
+  # the web tools are Pi builtins and extensions the primary uses every day.
+  for tool in $PI_PRIMARY_TOOLS; do
+    expect_allow "Pi primary ordinary tool" "$tool"
+  done
+  pass "the Pi primary delegation surface is denied while its ordinary tools pass"
+}
+
 test_stdin_transports_and_output_shapes() {
   local rc=0
   : > "$OUT"; : > "$ERR"
@@ -286,6 +313,7 @@ test_deny_message_defers_to_intake_classification
 test_escape_hatch_allows_deliberate_use
 test_task_worktree_and_non_firstmate_repo_are_inert
 test_secondmate_home_is_in_scope
+test_pi_primary_tool_surface_is_guarded
 test_stdin_transports_and_output_shapes
 test_malformed_transport_fails_open
 test_missing_jq_stdin_transport_fails_open

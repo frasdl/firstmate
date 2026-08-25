@@ -91,6 +91,9 @@ That deny list must not ship in tracked `.claude/settings.json` because it is Cl
 Two verified facts worth pinning here.
 The subagent tool presents to the model as `Agent`, and on Claude Code 2.1.217 both `Agent` and `Task` work as `permissions.deny` keys, verified by an A/B with a nonsense-name control.
 `permissions.allow` is a pre-approval list rather than an availability list, so there is no fail-closed positive allowlist.
+On the Pi family the guard is wired into the same tracked file as the turn-end guard and bash seatbelts: the `tool_call` handler routes every non-bash tool name through `bin/fm-subagent-pretool-check.sh --tool <name>` and returns `{block: true}` only when it exits 2.
+pi-subagents registers `subagent`, `subagent_wait`, and `subagent_supervisor`, and on Pi 0.84.3 with pi-subagents 0.56.0 an actual `subagent` call was blocked live with the dispatch-path message, while ordinary tools passed, the linked-worktree negative stayed inert, and `FM_ALLOW_SUBAGENT=1` released the block.
+The dated evidence is in `docs/verification/subagent-guard.md`.
 
 ## Primary session start
 
