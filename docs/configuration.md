@@ -109,6 +109,18 @@ The caller-facing label remains `fm-<id>`, but the actual cmux workspace title i
 Test cleanup must use the guarded path in [`docs/cmux-backend.md`](cmux-backend.md#current-operation-and-safety), never enumerate-and-close every workspace.
 `config/backend` is inherited into secondmate homes under the primary-authoritative contract owned by [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md).
 
+## Forge (config/forge)
+
+The local, gitignored `config/forge` file selects which forge a home targets, defaulting to `github` when absent.
+It accepts one word on its first non-empty line: `github`, `gitlab`, or `local`.
+An unrecognized word is reported as an `BOOTSTRAP_INFO:` line and falls back to `github`, never silently claiming a typo as fine.
+The forge governs two bootstrap decisions: which forge CLI the universal toolchain requires, and whether the GitHub auth probe runs at session start.
+A `github` home requires `gh` and `gh-axi` and probes GitHub authentication (`NEEDS_GH_AUTH` on failure).
+A `gitlab` home requires `glab` in place of `gh`/`gh-axi` and never probes GitHub auth.
+A `local` home requires no forge CLI at all and never probes GitHub auth.
+`no-mistakes` is a forge-backed push/PR validation tool, so it is required on `github` and `gitlab` homes and deliberately omitted on a `local` home, whose work lands through the guarded local fast-forward path.
+The forge is orthogonal to a project's registered delivery mode: a `github` or `gitlab` home still sends `no-mistakes` and `direct-PR` work through its forge's PR or MR path, while a `local` home's work lands through the guarded local fast-forward path.
+
 ## Away-mode supervisor backend (FM_SUPERVISOR_BACKEND / FM_SUPERVISOR_TARGET)
 
 The `/afk` sub-supervisor injects escalation digests into firstmate's own pane independently of where new task endpoints are spawned.
@@ -318,7 +330,7 @@ Secondmate homes inherit this file from the primary, so a secondmate's own crewm
 On session start the first mate detects what its required toolchain is missing or too old and lists each problem with either an exact install command or manual instructions.
 It installs automatically supported tools only after you say go; manual-only tools remain for you to install from the printed instructions.
 Required tools come in two parts: a universal toolchain every home needs regardless of backend, and a per-backend delta that follows the runtime backend actually resolved for this home.
-The universal toolchain is node, git, gh with GitHub auth via `gh auth login`, no-mistakes v1.31.2 or newer, compatible gh-axi, chrome-devtools-axi, compatible lavish-axi, compatible tasks-axi per "Backlog backend" above, and compatible quota-axi.
+The universal toolchain is node, git, the forge CLI selected by `config/forge` (gh with GitHub auth via `gh auth login` for `github`, `glab` for `gitlab`, none for `local`; see "Forge" above), no-mistakes v1.31.2 or newer, the GitHub-flavored gh-axi for `github` homes, chrome-devtools-axi, compatible lavish-axi, compatible tasks-axi per "Backlog backend" above, and compatible quota-axi.
 [`bin/fm-bootstrap.sh`](../bin/fm-bootstrap.sh) owns the axi-family floor policy and the gh-axi and lavish-axi floors, while [`bin/fm-tasks-axi-lib.sh`](../bin/fm-tasks-axi-lib.sh) and [`bin/fm-quota-axi-lib.sh`](../bin/fm-quota-axi-lib.sh) hold their own tools' floor constants.
 This section is the single owner of that universal toolchain list; backend guides' prerequisites point here and add only their backend-specific tools.
 In that list, no-mistakes runs the validation pipeline, gh-axi, chrome-devtools-axi, and lavish-axi cover GitHub, browser, and rich-review operations, and tasks-axi plus quota-axi back backlog mutations and quota-aware array dispatch.
