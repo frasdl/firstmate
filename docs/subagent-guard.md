@@ -184,7 +184,7 @@ Applicability turns on one question: does the harness expose built-in delegation
 | Codex | none | Not applicable, verified empirically below. Codex 0.144.1 exposes no subagent, sub-task, or delegated-agent tool, so there is nothing to remove or intercept. `.codex/hooks.json` is unchanged. |
 | Grok | present, exact tokens unconfirmed | Not wired pending live verification. See below. |
 | OpenCode | present, exact tokens unconfirmed | Not wired pending live verification. See below. |
-| Pi | none reported | Not wired pending live verification. See below. |
+| Pi | pi-subagents installs `subagent`, `subagent_wait`, and `subagent_supervisor` | Scoped guard wired and live-verified. See below. |
 
 ### Codex, verified not applicable
 
@@ -221,7 +221,7 @@ SUBAGENT_TOOL=no
 `multi_tool_use.parallel` batches calls to the tools above; it does not spawn an agent.
 Codex is therefore not applicable today, and this table row is the tripwire: if a future Codex release adds a delegated-agent tool, wire `.codex/hooks.json` the same way its `Bash` PreToolUse entries already forward stdin to a checker.
 
-### Grok, OpenCode, and Pi, inspected but not wired
+### Grok and OpenCode, inspected but not wired
 
 The integration surface of each was inspected and each is structurally wireable for the shipped guard.
 
@@ -230,16 +230,27 @@ The integration surface of each was inspected and each is structurally wireable 
   Grok does expose a delegation surface: `docs/supervision-protocols/grok.md` documents `get_command_or_subagent_output(<task_id>)`, which implies a corresponding dispatch tool.
 - OpenCode's tracked plugins gate on `input?.tool !== "bash"` inside `tool.execute.before`, and block by throwing.
   Swapping that comparison for a call into this checker with `--tool` is the whole change.
-- Pi's tracked extension gates on `event.toolName !== "bash"` inside `pi.on("tool_call", ...)` and blocks by returning `{block: true}`.
-  The same change applies. A parallel evaluation reports that Pi exposes no delegation tool at all, which would make it not applicable, but that was not verified here.
 
-None of the three is wired in this change because none of the three binaries is installed on the host where this work was done, so the exact tool-name tokens could not be confirmed and the wiring could not be validated against the real harness.
+Neither is wired because neither binary is installed on the host where this work was done, so the exact tool-name tokens could not be confirmed and the wiring could not be validated against the real harness.
 This repo's rule in the `firstmate-coding-guidelines` skill is that a harness hook must be validated in a scratch project before it is trusted, and `arm-pretool-check.md` records the concrete cost of guessing: a Grok hook whose `command` string is even slightly wrong fails to launch the hook at all.
 Wiring an unvalidated matcher would trade a known gap for an unknown breakage.
 
 The bounded follow-up for each is identical to the Codex procedure above.
 On a host with the binary installed, ask the harness to enumerate its tools, then wire the matcher and re-run the live matrix below.
-`bin/fm-subagent-pretool-check.sh` needs no change for any of them: it already accepts Grok's stdin shape and the `--tool` CLI form OpenCode and Pi use, and it already emits the Grok stdout decision object by default.
+`bin/fm-subagent-pretool-check.sh` needs no change for either of them: it already accepts Grok's stdin shape and the `--tool` CLI form OpenCode uses, and it already emits the Grok stdout decision object by default.
+
+### Pi, wired and live-verified
+
+Pi exposes a real delegation surface through the installed pi-subagents package, which registers `subagent`, `subagent_wait`, and `subagent_supervisor` as primary tools.
+That closes the previous "none reported" row: the claim came from an environment without pi-subagents installed, so the surface was invisible rather than absent.
+
+The tracked `.pi/extensions/fm-primary-turnend-guard.ts` now routes every non-bash `tool_call` through `bin/fm-subagent-pretool-check.sh --tool <toolName>` and returns `{block: true, reason: <stderr>}` only when the checker exits 2.
+Ordinary tool names fail fast inside the script and pass unchanged, and the bash watcher-arm and cd seatbelts are untouched.
+`pi-signed` loads the same tracked extension file.
+The scope, escape-hatch, and deny-routing contracts are exactly the same as on Claude: the checker's own `fm_primary_scope_matches` keeps the guard inert in a crewmate's linked worktree, and `FM_ALLOW_SUBAGENT=1` at session launch is the single escape hatch.
+
+Live verification on 2026-08-25 against Pi 0.84.3 with pi-subagents 0.56.0 confirmed that a non-bash `tool_call` (`read`) reaches the handler with a real tool name and passes; that a delegation-shaped scratch tool `spawn_worker` is blocked before execution, with its sentinel side effect never running and the model receiving the `[subagent-dispatch]` message naming `bin/fm-brief.sh` then `bin/fm-spawn.sh`; that the real pi-subagents `subagent` tool is denied with the same message; that `FM_ALLOW_SUBAGENT=1` launches let the same tool execute; and that the same wiring is inert in a linked worktree, where the delegation-shaped tool executes normally.
+The dated evidence is in [`docs/verification/subagent-guard.md`](verification/subagent-guard.md).
 
 ## Live validation record, 2026-07-22
 
@@ -353,7 +364,7 @@ The live consequence is confirmed by the shipped-guard result above: Claude hono
 ## Automated validation
 
 `tests/fm-subagent-pretool-check.test.sh` owns the acceptance matrix and is registered in the `pure-contract-unit` family in `bin/fm-test-run.sh`.
-It covers the tracked Claude settings boundary that forbids a `permissions` key; the match-all Claude hook registration; denial of every work-creating delegation tool by shape; denial of twelve hypothetical future tool names that appear on no list; the observe-or-stop, plan-only, and MCP exclusions; the exactness of the plan-only exclusion against six near-miss names a substring or shorter-stem widening would release; the scout-present and scout-absent message variants; the escape hatch including its fail-closed values; inertness in a linked task worktree and in a non-firstmate repo; in-scope enforcement for a marked secondmate home; both stdin transports; the empty-stdout requirement; fail-open transport behavior; and the preserved `Bash` seatbelts and `Stop` guard.
+It covers the tracked Claude settings boundary that forbids a `permissions` key; the match-all Claude hook registration; denial of every work-creating delegation tool by shape; denial of twelve hypothetical future tool names that appear on no list; the concrete pi-subagents tool surface (`subagent`, `subagent_wait`, `subagent_supervisor`); preservation of firstmate's own `fm_*` tools and ordinary Pi built-ins; the observe-or-stop, plan-only, and MCP exclusions; the exactness of the plan-only exclusion against six near-miss names a substring or shorter-stem widening would release; the scout-present and scout-absent message variants; the escape hatch including its fail-closed values; inertness in a linked task worktree and in a non-firstmate repo; in-scope enforcement for a marked secondmate home; both stdin transports; the empty-stdout requirement; fail-open transport behavior; and the preserved `Bash` seatbelts and `Stop` guard.
 
 Run:
 
@@ -379,5 +390,5 @@ Without an independent Relay need, unaccounted primary work therefore reads as i
 
 The durable fix for that class is to make the guards treat "the primary is doing project-shaped work with zero `state/*.meta` files" as a suspicious state rather than an idle one.
 That would catch this class on any harness, including work created through `Bash`.
-This change fences only the Claude tool surface.
+This change fences the Claude and Pi tool surfaces, still one harness at a time.
 That is a separate change to `bin/fm-supervision-lib.sh` and `bin/fm-turnend-guard.sh` and is out of scope here.
