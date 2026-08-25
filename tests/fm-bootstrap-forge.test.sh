@@ -215,16 +215,38 @@ test_forge_local_requires_no_forge_cli_and_no_auth() {
   mkdir -p "$case_dir/home/config"
   printf '%s\n' local > "$case_dir/home/config/forge"
   fakebin=$(make_fake_toolchain "$case_dir")
-  rm -f "$fakebin/gh" "$fakebin/gh-axi"
-  # A local home must pass silently with no forge CLI at all on the search path.
-  mirror_path_full "$case_dir/mirror" "gh gh-axi glab" "$fakebin"
+  rm -f "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/no-mistakes"
+  # A local home must pass silently with no forge CLI and no no-mistakes on the
+  # search path, because local work lands through the guarded fast-forward path.
+  mirror_path_full "$case_dir/mirror" "gh gh-axi glab no-mistakes" "$fakebin"
   out=$(PATH="$case_dir/mirror" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
   assert_not_contains "$out" "MISSING: gh" "forge-local: gh was required on a local home"
   assert_not_contains "$out" "MISSING: gh-axi" "forge-local: gh-axi was required on a local home"
   assert_not_contains "$out" "MISSING: glab" "forge-local: glab was required on a local home"
+  assert_not_contains "$out" "MISSING: no-mistakes" "forge-local: no-mistakes was required on a local home"
   assert_not_contains "$out" "NEEDS_GH_AUTH" "forge-local: a local home probed GitHub auth"
-  pass "bootstrap forge: local requires no forge CLI and never probes GitHub auth"
+  pass "bootstrap forge: local requires no forge CLI, no no-mistakes, and never probes GitHub auth"
+}
+
+test_forge_gitlab_requires_no_mistakes() {
+  local case_dir fakebin out
+  case_dir="$TMP_ROOT/forge-gitlab-no-mistakes"
+  mkdir -p "$case_dir/home/config"
+  printf '%s\n' gitlab > "$case_dir/home/config/forge"
+  fakebin=$(make_fake_toolchain "$case_dir")
+  rm -f "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/no-mistakes"
+  add_fake_glab "$fakebin"
+  # A gitlab home keeps no-mistakes (a forge-backed validation tool), so an
+  # absent no-mistakes is reported even when gh/gh-axi are not required.
+  mirror_path_full "$case_dir/mirror" "gh gh-axi no-mistakes" "$fakebin"
+  out=$(PATH="$case_dir/mirror" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
+    FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
+  assert_not_contains "$out" "MISSING: gh" "forge-gitlab-no-mistakes: gh was required on a gitlab home"
+  assert_contains "$out" "MISSING: no-mistakes (install: curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh)" \
+    "forge-gitlab-no-mistakes: absent no-mistakes was not reported on a gitlab home"
+  assert_not_contains "$out" "NEEDS_GH_AUTH" "forge-gitlab-no-mistakes: a gitlab home probed GitHub auth"
+  pass "bootstrap forge: gitlab requires no-mistakes, local omits it"
 }
 
 test_forge_invalid_value_defaults_to_github_with_warning() {
@@ -250,5 +272,6 @@ test_forge_invalid_value_defaults_to_github_with_warning() {
 
 test_forge_github_default_requires_gh_and_axi_and_auth
 test_forge_gitlab_requires_glab_not_gh_and_no_auth
+test_forge_gitlab_requires_no_mistakes
 test_forge_local_requires_no_forge_cli_and_no_auth
 test_forge_invalid_value_defaults_to_github_with_warning

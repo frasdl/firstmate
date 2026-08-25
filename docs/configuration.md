@@ -118,6 +118,7 @@ The forge governs two bootstrap decisions: which forge CLI the universal toolcha
 A `github` home requires `gh` and `gh-axi` and probes GitHub authentication (`NEEDS_GH_AUTH` on failure).
 A `gitlab` home requires `glab` in place of `gh`/`gh-axi` and never probes GitHub auth.
 A `local` home requires no forge CLI at all and never probes GitHub auth.
+`no-mistakes` is a forge-backed push/PR validation tool, so it is required on `github` and `gitlab` homes and deliberately omitted on a `local` home, whose work lands through the guarded local fast-forward path.
 The forge is orthogonal to a project's registered delivery mode: a `github` or `gitlab` home still sends `no-mistakes` and `direct-PR` work through its forge's PR or MR path, while a `local` home's work lands through the guarded local fast-forward path.
 
 ## Away-mode supervisor backend (FM_SUPERVISOR_BACKEND / FM_SUPERVISOR_TARGET)

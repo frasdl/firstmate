@@ -11,6 +11,10 @@
 # gitlab                        glab                 no
 # local                         none                 no
 #
+# no-mistakes is a forge-backed push/PR validation tool. It is required on
+# github and gitlab, and deliberately omitted on local, where work lands
+# through the guarded local fast-forward path and skips no-mistakes by design.
+#
 # Consumers: bin/fm-bootstrap.sh (universal toolchain selection and the auth
 # probe) and bin/fm-startup-network.sh (digest phase labels). This file is
 # sourced, never executed.

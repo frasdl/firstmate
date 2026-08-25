@@ -875,7 +875,7 @@ FORGE=$(fm_forge_name)
 # no verified dependency set is reported before the universal checks continue.
 case "$FORGE" in
   gitlab) COMMON_TOOLS="node git glab no-mistakes chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
-  local)  COMMON_TOOLS="node git no-mistakes chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
+  local)  COMMON_TOOLS="node git chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
   *)      COMMON_TOOLS="node git gh no-mistakes gh-axi chrome-devtools-axi lavish-axi tasks-axi quota-axi" ;;
 esac
 BACKEND=$(fm_backend_name)
