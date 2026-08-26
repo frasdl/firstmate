@@ -32,7 +32,7 @@ This feature is Pi-only by construction and changes nothing anywhere else:
 - Consistency: `bin/fm-lease-lib.sh` owns the per-task lease contract, the main-only role partition, and the deliberate CONFUSED-AGENT-GRADE threat model these guards target (captain-decided; adversarial-grade separation is out of scope and tracked as follow-up design work); `bin/fm-lease.sh` is the command surface.
   The guards are wired into `fm-send.sh`, `fm-control.sh`, and `fm-teardown.sh` (overlap, lease-checked, with claim serialization retained through the mutation) and `fm-pr-merge.sh`, `fm-merge-local.sh`, and `fm-spawn.sh` (main-owned, branch refused; a relaunch through `fm-control` stays branch-legal recovery).
 - Autonomy: supervision is default-on for every task once a Pi primary session owns the fleet lock (docs/configuration.md "Pi supervision branch"); no captain grant file is required.
-  A fleet-wide heartbeat is separately eligible only when the unread queue contains heartbeat rows and resolvable task-local rows (see "Heartbeat routing" below); every other fleet-wide or unresolvable wake, and every watcher-failure alarm, stays on main.
+  A fleet-wide heartbeat is separately eligible only when the unread queue contains heartbeat rows and resolvable task-local rows (see "Heartbeat routing" below); every other fleet-wide wake, every structurally unreadable wake, and every watcher-failure alarm stays on main.
   The branch recomputes eligibility immediately before prompting the branch to drain and publishes the exact eligible row set to `state/.branch-eligible-rows` through `writeEligibleRowsSnapshot`.
   A newly-arrived main-owned row observed at that recheck no longer defers the whole queue to main: it is excluded from the eligible set, so whatever else is currently eligible still reaches the branch, and the main-owned row stays queued for main's own later drain.
   A legible signal/stale row whose task metadata no longer exists at that recheck (teardown raced the queued wake) is the same main-only class - excluded, never a veto, left for main - exactly like a check-kind row, while any structurally unreadable row (unknown kind, malformed line) still defers the whole queue to main (classification owner: `.pi/extensions/lib/fm-branch-dispatch.ts` header, and see the heartbeat rule in "Heartbeat routing" below).
@@ -63,7 +63,7 @@ Only a scan already flagged as possibly captain-relevant emits the bare `heartbe
 The branch runs its normal operating procedure for the wake (`bin/fm-branch-prompt.sh` "Handling a wake") and performs the deeper fleet review that main previously performed.
 A review that found literally nothing worth reporting uses verdict `routine`, `task=fleet`, and `silent=true` so it has no rendered note, while a fleet-wide routine action omits `silent` and keeps its rendered sailboat note.
 Only a captain-worthy finding reports verdict `captain` and opens a main turn.
-Every other fleet-wide or unresolvable wake - including watcher-failure alarms, which are never offered to the branch - keeps today's wake-to-main path.
+Every other fleet-wide wake, every structurally unreadable wake - including watcher-failure alarms, which are never offered to the branch - keeps today's wake-to-main path.
 
 ## Cost model and the byte-stable prefix
 
