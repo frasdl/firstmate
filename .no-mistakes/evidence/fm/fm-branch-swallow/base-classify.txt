@@ -1,0 +1,3 @@
+unmapped-only: {"status":"unsafe","eligible":false,"corrupted":true,"eligibleSeqs":[],"projects":[]}
+mixed: {"status":"unsafe","eligible":false,"corrupted":true,"eligibleSeqs":[],"projects":[]}
+heartbeat-with-unmapped: {"status":"unsafe","eligible":false,"corrupted":true,"eligibleSeqs":[],"projects":[]}

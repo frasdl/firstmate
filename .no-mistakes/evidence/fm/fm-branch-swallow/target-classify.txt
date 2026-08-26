@@ -1,0 +1,5 @@
+unmapped-only: {"status":"unsafe","eligible":false,"corrupted":false,"eligibleSeqs":[],"projects":[]}
+mixed: {"status":"safe","eligible":true,"corrupted":false,"eligibleSeqs":["2","3"],"projects":["/tmp/tmp.mrYajBZjYK/home/projects/approved"]}
+heartbeat-with-unmapped: {"status":"unsafe","eligible":false,"corrupted":true,"eligibleSeqs":[],"projects":[]}
+malformed-line: {"status":"unsafe","eligible":false,"corrupted":true,"eligibleSeqs":[],"projects":[]}
+snapshot-publish: published rows: ["2","3"] == [2,3]: true
