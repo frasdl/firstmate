@@ -35,13 +35,13 @@ export interface UnreadWakeScope {
   /**
    * True only when this scan itself is untrustworthy: the queue or its
    * metadata could not be read, a line fails the structural tab-field check,
-   * an unresolvable signal/stale row was found, or - for a heartbeat review
-   * only - a main-owned row sits anywhere in the unread queue. False whenever
-   * the scan completed cleanly and simply found nothing (or nothing further)
-   * eligible for the branch right now: status "unsafe" with corrupted false
-   * is the ordinary "ordinary main-only content, nothing here for the
-   * branch" case, not a fault, and callers should treat it as ordinary
-   * absence rather than escalating.
+   * an unknown wake kind was found, or - for a heartbeat review only - a
+   * main-owned row (check-kind or legible-but-unmapped) sits anywhere in the
+   * unread queue. False whenever the scan completed cleanly and simply found
+   * nothing (or nothing further) eligible for the branch right now: status
+   * "unsafe" with corrupted false is the ordinary "ordinary main-only
+   * content, nothing here for the branch" case, not a fault, and callers
+   * should treat it as ordinary absence rather than escalating.
    */
   corrupted: boolean;
 }
@@ -63,13 +63,18 @@ const UNSAFE_SCOPE: UnreadWakeScope = { status: "unsafe", eligible: false, proje
 // heartbeat=false is the changed half of this contract. A check-kind row -
 // merge-confirmation polls, Relay mentions, credential/auth failures, and
 // every other legitimately main-only class - no longer vetoes the whole scan;
-// it is simply excluded from eligibleSeqs and left for main. An unresolvable
-// signal/stale row (unmapped project) still vetoes the whole scan exactly as
-// before, because that is a data/metadata problem this function cannot safely
-// reason past, not an ordinary main-only event. A row this repo's
-// fm_wake_append could never have produced (an unknown kind, or a line that
-// fails the structural tab-field check) also still vetoes the whole scan -
-// that is queue corruption, not an everyday mixed queue.
+// it is simply excluded from eligibleSeqs and left for main. A legible
+// signal/stale row whose task metadata no longer exists (an unmapped project)
+// is the same ordinary main-only class, NOT corruption: a wake row can
+// legitimately outlive its task's state files when teardown deletes
+// state/<id>.meta while the wake is still queued or already accepted by the
+// branch, so such a row is excluded from eligibleSeqs and left for main just
+// like a check-kind row. Only a row this repo's fm_wake_append could never
+// have produced (an unknown kind, or a line that fails the structural
+// tab-field check) still vetoes the whole scan - that is queue corruption,
+// not an everyday mixed queue. A heartbeat review keeps its own all-or-nothing
+// rule for EVERY main-owned row (check-kind or unmapped), because a heartbeat
+// needs the whole fleet's context and only main can consume those rows.
 export function scopeForUnreadWake(state: string, heartbeat: boolean): UnreadWakeScope {
   let queue = "";
   try {
@@ -128,7 +133,15 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean): UnreadWak
       // ordinary main-only row.
       return UNSAFE_SCOPE;
     }
-    if (!project) return UNSAFE_SCOPE;
+    if (!project) {
+      // A legible signal/stale row whose task metadata is gone (teardown raced
+      // the queued wake) is main-only, exactly like a check-kind row: only
+      // main can consume it, so a heartbeat review defers to main, and an
+      // ordinary scan simply leaves it queued for main without vetoing the
+      // rows that ARE resolvable.
+      if (heartbeat) return UNSAFE_SCOPE;
+      continue;
+    }
     projects.add(project);
     eligibleSeqs.push(seq);
   }

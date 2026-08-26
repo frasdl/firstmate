@@ -91,7 +91,9 @@ reclaim_stale_branch_grant_locked() {
 write_rows_file_locked() { # <target> <source>
   local target=$1 source=$2
   if [ ! -s "$source" ]; then
-    rm -f -- "$target"
+    # The source is always this caller's owned scratch file (DRAIN_TMP), and an
+    # empty claim/consume set must not abandon it in state/.
+    rm -f -- "$target" "$source"
     return
   fi
   chmod 0600 "$source" || return 1

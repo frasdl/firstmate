@@ -1396,6 +1396,49 @@ if (!truncated.corrupted || truncated.eligible || truncated.eligibleSeqs.length 
   throw new Error(`a four-field queue row was not classified as corruption: ${JSON.stringify(truncated)}`);
 }
 
+// A legible but UNMAPPED signal row (a wake that outlived its task's
+// teardown: state/<id>.meta deleted while the row was still queued) is
+// ordinary main-only content, not corruption: excluded from eligibleSeqs,
+// left for main, and never allowed to veto rows that DO resolve. Only a
+// structurally unreadable row is corruption (above). This is the 2026-08-26
+// m365-pi-scout wake-loss reproduction: the branch's chained re-scan found a
+// stale row whose task had just been torn down and wrongly fell back to main
+// with "the unread wake queue could not be read safely".
+writeFileSync(
+  `${state}/.wake-queue`,
+  "1\t1\tsignal\ttorn-down-task.status\tsignal: torn-down-task.status\n",
+);
+const unmapped = scopeForUnreadWake(state, false);
+if (unmapped.eligible || unmapped.corrupted || unmapped.eligibleSeqs.length !== 0) {
+  throw new Error(`an unmapped signal row must read as ordinary main-only, not corruption: ${JSON.stringify(unmapped)}`);
+}
+
+// A mixed queue: the unmapped row (seq 1) never vetoes the resolvable
+// task-local rows (seq 2, 3) - the torn-down-leftover reproduction.
+writeFileSync(
+  `${state}/.wake-queue`,
+  [
+    "1\t1\tstale\torphan-window\tstale: orphan-window",
+    "1\t2\tsignal\ttask-a.status\tsignal: task-a.status",
+    "1\t3\tstale\tfm-window\tstale: fm-window",
+  ].join("\n"),
+);
+const unmappedMixed = scopeForUnreadWake(state, false);
+if (!unmappedMixed.eligible || unmappedMixed.corrupted) {
+  throw new Error(`unmapped row must not veto resolvable task-local rows: ${JSON.stringify(unmappedMixed)}`);
+}
+if (unmappedMixed.eligibleSeqs.slice().sort().join(",") !== "2,3") {
+  throw new Error(`eligibleSeqs must exclude the unmapped row and keep the resolvable ones: ${JSON.stringify(unmappedMixed)}`);
+}
+
+// heartbeat keeps its all-or-nothing rule for an unmapped row exactly as for
+// a check-kind row: a main-owned row anywhere in the unread queue defers the
+// whole review to main.
+const unmappedHeartbeat = scopeForUnreadWake(state, true);
+if (unmappedHeartbeat.eligible || !unmappedHeartbeat.corrupted) {
+  throw new Error(`an unmapped row must still veto a heartbeat review: ${JSON.stringify(unmappedHeartbeat)}`);
+}
+
 // A mixed queue: the main-only row (seq 1) never vetoes the task-local rows
 // (seq 2, 3) - the reproduction from the task.
 writeFileSync(

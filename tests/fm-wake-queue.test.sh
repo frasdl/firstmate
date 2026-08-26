@@ -708,6 +708,41 @@ test_main_drain_excludes_rows_already_granted_to_branch() {
   pass "main drain and acknowledgement exclude an active branch grant"
 }
 
+test_empty_actor_claims_leave_no_scratch_tmp_behind() {
+  local dir state out err n
+  dir=$(make_case empty-claims)
+  state="$dir/state"
+
+  # A main drain whose claim set is empty (every row is branch-granted) and a
+  # branch ack whose consume set is empty (every granted row is at or below the
+  # cutoff) must not abandon their scratch tmp files in state/ - the pre-fix
+  # leak left .main-eligible-rows.tmp.* and .wake-rows.consume.* litter behind.
+  append_wake "$state" signal "task-a.status" "signal: task-a" || fail "signal append failed"
+  append_wake "$state" stale "fm-window" "stale: fm-window" || fail "stale append failed"
+  FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" empty-claims || fail "branch owner activation failed"
+  FM_STATE_OVERRIDE="$state" "$GRANT" publish empty-claims 1 2 || fail "branch grant publication failed"
+
+  out="$dir/main.out"
+  err="$dir/main.err"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "main drain failed: $(cat "$err")"
+  [ -s "$out" ] && fail "main drain presented branch-granted rows: $(cat "$out")"
+
+  out="$dir/branch.out"
+  err="$dir/branch.err"
+  FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$out" 2> "$err" \
+    || fail "branch drain failed: $(cat "$err")"
+  sequence=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' "$err")
+  generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
+  [ -n "$sequence" ] && [ -n "$generation" ] || fail "branch drain omitted its acknowledgement boundary"
+  FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" --ack-through "$sequence" --recovery-generation "$generation" \
+    || fail "branch ack failed"
+
+  n=$(find "$state" -maxdepth 1 \( -name '.main-eligible-rows.tmp.*' -o -name '.wake-rows.consume.*' \) | wc -l | tr -d ' ')
+  [ "$n" -eq 0 ] || fail "empty actor claims left scratch temp files in state/: $(find "$state" -maxdepth 1 \( -name '.main-eligible-rows.tmp.*' -o -name '.wake-rows.consume.*' \) | tr '\n' ' ')"
+
+  pass "empty actor claims and acks leave no scratch temp files behind"
+}
+
 test_branch_grant_refuses_rows_already_claimed_by_main() {
   local dir state rc
   dir=$(make_case branch-refuses-main-claim)
@@ -1218,6 +1253,7 @@ test_enrichment_preserves_all_unread_lines_and_status_file_failures
 test_slow_annotation_does_not_block_append_and_deleted_file_fails_open
 test_branch_actor_scoped_ack_never_swallows_a_main_owned_row
 test_main_drain_excludes_rows_already_granted_to_branch
+test_empty_actor_claims_leave_no_scratch_tmp_behind
 test_branch_grant_refuses_rows_already_claimed_by_main
 test_actor_filter_precedes_same_key_deduplication
 test_main_reclaims_a_grant_whose_branch_owner_exited
