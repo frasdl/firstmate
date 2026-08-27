@@ -1,0 +1,10 @@
+### omp detection matrix (bin/fm-harness.sh), omp v18.0.6 host
+OMPCODE=1 CLAUDECODE=1          ->  omp
+OMPCODE=1 PI_CODING_AGENT=true  ->  omp
+CLAUDECODE=1 alone              ->  claude
+PI_CODING_AGENT=true alone      ->  pi
+CURSOR_AGENT=1 + OMPCODE=1      ->  cursor
+GROK_AGENT=1 + OMPCODE=1        ->  grok
+
+### fm-spawn omp crewmate launch template
+omp --approval-mode yolo -e __OMPEXT__ __MODELFLAG____EFFORTFLAG__"$(__OPINPUT__ encode launch-brief < __BRIEF__)"

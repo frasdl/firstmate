@@ -1,0 +1,6 @@
+# omp omp/18.0.6: its own bash tool reported CLAUDECODE=1 in its own environment
+ok - omp session-lock live guard: a real omp session's own process environment carries CLAUDECODE=1
+# omp omp/18.0.6: live process comm='omp' args='/home/francesco/.local/bin/omp -p --no-session Run this exact bash command using your tool and output only its result, nothing else: echo -n "OMPCLAUDECODE=$CLAUDECODE"; sleep 3'
+ok - omp session-lock live guard: a real omp process's own comm reports base name 'omp'
+ok - omp session-lock live guard: the real (unfaked) classifier recognizes a live omp process from its own ancestry without extending past it
+exit=0

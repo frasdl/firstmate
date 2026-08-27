@@ -1,0 +1,10 @@
+fm-omp-harness: PASS (silent assert matrix, 8 cases)
+fm-omp-primary-extensions: 1 oks; no failures
+fm-omp-primary-types: 0 oks; skip: installed @oh-my-pi/pi-coding-agent package not found 
+fm-session-lock-ancestry: 13 oks; no failures
+fm-busy-adapter-wiring: 11 oks; no failures
+fm-composer-lib: 34 oks; no failures
+fm-turnend-guard: 70 oks; no failures
+fm-supervision-instructions: 10 oks; no failures
+fm-subagent-pretool-check: 14 oks; no failures
+fm-bootstrap: 28 oks; skip: ambient zellij in the run PATH; absent-CLI fail-closed case not reproducible here 
