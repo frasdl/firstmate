@@ -116,7 +116,7 @@ detect_own() {
           *claude*) echo claude; return ;;
           *codex*) echo codex; return ;;
           *opencode*) echo opencode; return ;;
-          *omp*) echo omp; return ;;
+          *[[:space:]/]omp[[:space:]/]*|*[[:space:]/]omp) echo omp; return ;;
           *grok*) echo grok; return ;;
           *" pi "*|*/pi) echo pi; return ;;
         esac ;;
