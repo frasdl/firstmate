@@ -142,6 +142,29 @@ function runChecker(script: string, command: string): Promise<{ code: number; st
   });
 }
 
+// Delegation-shape guard (bin/fm-subagent-pretool-check.sh, docs/subagent-guard.md).
+// Every non-bash tool name on the omp primary is classified by shape: a
+// delegation-shaped name such as omp's built-in `task` subagent spawner is
+// denied and the deny message routes the work back to the fleet dispatch path.
+// Ordinary tool names fail fast inside the script and pass unchanged.
+// The script's own fm_primary_scope_matches keeps the guard inert in a
+// crewmate's linked task worktree for the same reason the bash seatbelts above
+// are inert there, and FM_ALLOW_SUBAGENT=1 at session launch is the single
+// escape hatch.
+function runSubagentCheck(toolName: string): Promise<{ code: number; stderr: string }> {
+  return new Promise((resolveResult) => {
+    const child = spawn(root + "/bin/fm-subagent-pretool-check.sh", ["--tool", toolName], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", () => resolveResult({ code: 0, stderr: "" }));
+    child.on("close", (code) => resolveResult({ code: code ?? 0, stderr }));
+  });
+}
+
 export default function (api: ExtensionAPI) {
   api.on("session_start", async () => {
     markLoaded();
@@ -161,7 +184,17 @@ export default function (api: ExtensionAPI) {
   });
 
   api.on("tool_call", async (event) => {
-    if (event.type !== "tool_call" || event.toolName !== "bash") return {};
+    if (event.type !== "tool_call") return {};
+    if (event.toolName !== "bash") {
+      const subagentResult = await runSubagentCheck(event.toolName);
+      if (subagentResult.code === 2) {
+        return {
+          block: true,
+          reason: subagentResult.stderr.trim() || "denied by the delegation-shape PreToolUse guard",
+        };
+      }
+      return {};
+    }
     const command = String((event.input as { command?: unknown })?.command ?? "");
     if (!command) return {};
     const cdResult = await runChecker("fm-cd-pretool-check.sh", command);
