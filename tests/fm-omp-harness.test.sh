@@ -72,8 +72,21 @@ test_grok_marker_still_detected() {
 }
 
 test_no_markers_is_unknown() {
-  local result
-  result=$(detect_with)
+  # Ancestry is real in this suite's host: when firstmate itself runs under
+  # omp (or claude, cursor, grok...), the marker-clean walk would find that
+  # harness process and report it. Pin the walk to a neutral fake ps so the
+  # verdict is deterministic in every host environment.
+  local result fakebin
+  fakebin=$(fm_test_tmproot omp-detect-no-marker-ps)
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *comm=*) printf 'bash\n' ;;
+  *ppid=*) printf '1\n' ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+  result=$(detect_with PATH="$fakebin:$PATH")
   assert_contains "$result" "unknown" "no markers should detect unknown, got: $result"
 }
 

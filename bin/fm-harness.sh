@@ -50,14 +50,15 @@ detect_own() {
   # CURSOR_AGENT=1 is set for the child/tool processes this script runs as.
   [ "${CURSOR_AGENT:-}" = "1" ] && { echo cursor; return; }
   [ "${CURSOR_INVOKED_AS:-}" = "cursor-agent" ] && { echo cursor; return; }
-  # omp (Oh My Pi, @oh-my-pi/pi-coding-agent) is checked BEFORE claude,
-  # deliberately, for the same reason cursor is: omp deliberately sets
-  # CLAUDECODE=1 on every bash-tool child process for Claude-Code
-  # bash-tool-compat, alongside its own unambiguous OMPCODE=1 (verified live,
-  # omp v18.0.4, both env vars observed on the same bash child process).
-  # omp is a divergent fork of pi-mono (own binary name, own credential
-  # store, own native extension-discovery root .omp/extensions rather than
-  # .pi/extensions) and is NOT the pi/pi-signed adapter below.
+  [ "${GROK_AGENT:-}" = "1" ] && { echo grok; return; }
+  # omp (Oh My Pi, @oh-my-pi/pi-coding-agent) is checked after grok and
+  # BEFORE claude, deliberately, for the same reason cursor is: omp
+  # deliberately sets CLAUDECODE=1 on every bash-tool child process for
+  # Claude-Code bash-tool-compat, alongside its own unambiguous OMPCODE=1
+  # (verified live, omp v18.0.4, both env vars observed on the same bash
+  # child process). omp is a divergent fork of pi-mono (own binary name, own
+  # credential store, own native extension-discovery root .omp/extensions
+  # rather than .pi/extensions) and is NOT the pi/pi-signed adapter below.
   [ "${OMPCODE:-}" = "1" ] && { echo omp; return; }
   [ "${CLAUDECODE:-}" = "1" ] && { echo claude; return; }
   if [ "${PI_CODING_AGENT:-}" = "true" ]; then
