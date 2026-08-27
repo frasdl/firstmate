@@ -29,7 +29,7 @@ if [ "${1:-}" = "status" ]; then
     echo "lock: unreadable"
     exit 0
   }
-  if fm_harness_pid_alive "$old"; then echo "lock: held by live harness pid $old"; else echo "lock: stale (pid $old dead or not a harness)"; fi
+  if fm_harness_pid_alive "$old" "$STATE"; then echo "lock: held by live harness pid $old"; else echo "lock: stale (pid $old dead or not a harness)"; fi
   exit 0
 fi
 
@@ -46,7 +46,24 @@ rm -f "$probe" 2>/dev/null || {
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 CLAIM_LOCK="$STATE/.lock.acquire"
 CLAIM_LOCK_HELD=0
+# Set the moment $LOCK is written with $me, cleared only once ownership of
+# that write has been verified. fm_harness_record_omp_claude runs BEFORE
+# $LOCK is ever written (see below) specifically so that $LOCK's own
+# visibility is the single moment publication completes: an untrappable
+# termination (SIGKILL, a crash) can only land before that marker exists, in
+# which case $LOCK itself was never written either, or after both exist. There
+# is no ordering in which $LOCK is visible while the marker a foreign omp
+# checker needs is still missing, so that gap cannot depend on the EXIT trap
+# below. The trap still rolls $LOCK back for the narrower case of a signal or
+# crash landing during the write or its own readback verification, so an
+# interrupted acquisition still looks exactly like one that never started.
+LOCK_PUBLISHED_BY_ME=0
+LOCK_PUBLISH_COMPLETE=0
 release_claim_lock() {
+  if [ "$LOCK_PUBLISHED_BY_ME" -eq 1 ] && [ "$LOCK_PUBLISH_COMPLETE" -ne 1 ]; then
+    rm -f "$LOCK" 2>/dev/null || true
+    LOCK_PUBLISHED_BY_ME=0
+  fi
   if [ "$CLAIM_LOCK_HELD" -eq 1 ]; then
     fm_lock_release "$CLAIM_LOCK"
     CLAIM_LOCK_HELD=0
@@ -61,7 +78,7 @@ if [ -f "$LOCK" ] && [ ! -L "$LOCK" ]; then
     echo "lock acquired: harness pid $me"
     exit 0
   fi
-  if fm_harness_pid_alive "$old"; then
+  if fm_harness_pid_alive "$old" "$STATE"; then
     echo "error: another live firstmate session holds the lock (pid $old); operate read-only until resolved" >&2
     exit 1
   fi
@@ -86,15 +103,31 @@ if [ -e "$LOCK" ] || [ -L "$LOCK" ]; then
     echo "error: session lock is unreadable; operate read-only until resolved" >&2
     exit 1
   }
-  if [ "$old" != "$me" ] && fm_harness_pid_alive "$old"; then
+  if [ "$old" != "$me" ] && fm_harness_pid_alive "$old" "$STATE"; then
     echo "error: another live firstmate session holds the lock (pid $old); operate read-only until resolved" >&2
     exit 1
   fi
+fi
+# A foreign session cannot later read $me's own $CLAUDECODE to verify an omp
+# identity (see fm_harness_pid_alive), so persist that verification now, in
+# the one context - the writer's own environment, immediately after the
+# no-live-foreign-holder checks above - where it is sound evidence. Runs on
+# every acquisition, omp or not, so a non-omp session correctly clears any
+# stale prior record. Written BEFORE $LOCK: $LOCK is what makes $me
+# discoverable to every other session, so the marker a foreign omp checker
+# needs to verify $me must already exist by the time that happens, not
+# racing to catch up afterward. A write failure here means no foreign
+# session could ever prove $me alive, so it fails the whole acquisition
+# before $LOCK is touched at all - nothing to roll back.
+if ! fm_harness_record_omp_claude "$STATE" "$me"; then
+  echo "error: cannot persist omp session-lock identity marker; operate read-only until resolved" >&2
+  exit 1
 fi
 if ! { printf '%s\n' "$me" > "$LOCK"; } 2>/dev/null; then
   echo "error: cannot write session lock; operate read-only until resolved" >&2
   exit 1
 fi
+LOCK_PUBLISHED_BY_ME=1
 written=$(cat "$LOCK" 2>/dev/null) || {
   echo "error: cannot verify session lock ownership; operate read-only until resolved" >&2
   exit 1
@@ -103,5 +136,6 @@ if [ ! -f "$LOCK" ] || [ -L "$LOCK" ] || [ "$written" != "$me" ]; then
   echo "error: session lock ownership verification failed; operate read-only until resolved" >&2
   exit 1
 fi
+LOCK_PUBLISH_COMPLETE=1
 release_claim_lock
 echo "lock acquired: harness pid $me"
