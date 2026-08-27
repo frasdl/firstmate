@@ -576,6 +576,15 @@ test_session_provider_backends_gate_own_cli_not_tmux() {
   # must fail closed on the genuine dep and never substitute a false tmux demand.
   while IFS='^' read -r backend cli; do
     [ -n "$backend" ] || continue
+    # An ambient session CLI inside the run PATH (e.g. /usr/bin/zellij)
+    # satisfies the presence-only availability check, so the absent-CLI
+    # scenario cannot be reproduced on such hosts; skip that row
+    # deterministically instead of failing. herdr and cmux stay covered
+    # because their CLIs are not in the test BASE_PATH on this host.
+    if PATH="$BASE_PATH" command -v "$cli" >/dev/null 2>&1; then
+      echo "skip: ambient $cli in the run PATH; absent-CLI fail-closed case not reproducible here"
+      continue
+    fi
     case_dir="$TMP_ROOT/$backend-missing-cli"
     mkdir -p "$case_dir/home/config"
     printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
@@ -893,8 +902,10 @@ test_network_phase_partitions_the_run() {
   printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
   fakebin=$(make_fake_toolchain "$case_dir")
   # Break the two diagnostics that stand for the two halves: a local tool floor
-  # and the network GitHub-auth probe.
-  rm -f "$fakebin/node"
+  # and the network GitHub-auth probe. tasks-axi stands for the local half: it
+  # is faked only inside the fakebin, so removing it is deterministic on every
+  # host, unlike node, whose real /usr/bin/node would satisfy `command -v`.
+  rm -f "$fakebin/tasks-axi"
   cat > "$fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 exit 1
@@ -903,12 +914,12 @@ SH
 
   all_out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
-  assert_contains "$all_out" "MISSING: node (install:" "the unsplit run lost its local diagnostic"
+  assert_contains "$all_out" "MISSING: tasks-axi (install:" "the unsplit run lost its local diagnostic"
   assert_contains "$all_out" "NEEDS_GH_AUTH" "the unsplit run lost its network diagnostic"
 
   skip_out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_FAKE_TREEHOUSE_LEASE_HELP=1 FM_BOOTSTRAP_NETWORK=skip "$ROOT/bin/fm-bootstrap.sh")
-  assert_contains "$skip_out" "MISSING: node (install:" "the local half lost its own diagnostic"
+  assert_contains "$skip_out" "MISSING: tasks-axi (install:" "the local half lost its own diagnostic"
   assert_not_contains "$skip_out" "NEEDS_GH_AUTH" "the local half still made a network call"
 
   only_out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
