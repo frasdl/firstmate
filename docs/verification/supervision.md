@@ -232,12 +232,13 @@ The blocking and bounded-follow-up mechanisms were validated across seven harnes
 | Grok | 0.2.112 native and 0.2.73 pre-native | Running-payload adaptive `Stop` | Native false-to-true continuation stayed in one process with two model turns and zero resume launches; the field-absent pre-native process launched exactly one guarded resume. |
 | Cursor | 2026.08.11-e8db854 | Awaited `stop` hook park returning one `followup_message` | Exit 2 ended the turn normally, proving it cannot block; a returned follow-up ran a genuine second turn; a sleeping hook held the boundary open and the wake landed after it; `loop_limit` stopped the hook being invoked at its ceiling. |
 
-### omp native session-stop and watcher bridge, 2026-08-24
+### omp native session-stop and watcher bridge, 2026-08-24, refreshed 2026-08-27
 
 omp 18.0.4 was exercised with both tracked `.omp/extensions` files in an isolated temporary Firstmate-shaped home.
 The first real `session_stop` ran `bin/fm-turnend-guard.sh` with a fixture exit 2, returned `{continue:true, additionalContext}`, forced a second model turn, and the second guard pass allowed the session to settle.
 The model called `fm_watch_arm_omp`, the tool started `bin/fm-watch-arm.sh`, and `session_shutdown` retired the arm child.
 A separate real omp 18.0.4 probe registered the same `tool_call` return shape for a Bash PreToolUse block, observed `OMP_PRETOOL_BLOCK`, and left the attempted command's output file absent.
+Refreshed 2026-08-27 on Linux (kernel 7.1.5-arch1-2) against omp 18.0.6 with the same tracked `.omp/extensions` files, including the delegation-shape subagent guard wired into the omp turn-end extension.
 
 ```sh
 FM_OMP_PRIMARY_LIVE_E2E=1 tests/fm-omp-primary-live-e2e.test.sh
@@ -247,6 +248,7 @@ Observed output:
 
 ```text
 ok - omp omp/18.0.4: session_stop blocked and continued natively, and fm_watch_arm_omp was discoverable and callable
+ok - omp omp/18.0.6: session_stop blocked and continued natively, and fm_watch_arm_omp was discoverable and callable
 ```
 
 ### Cursor primary park, 2026-08-13
