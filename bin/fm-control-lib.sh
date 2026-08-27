@@ -103,9 +103,9 @@ fm_control_harness_supports_kind() {  # <harness> <kind>
   fm_control_harness_supported "$harness" || return 1
   case "$harness" in
     muse) [ "$kind" != secondmate ] || return 1 ;;
-    # omp has no primary watcher-supervision protocol yet (unlike pi's tracked
-    # .pi/extensions turn-end guard), so it is crewmate/scout only, same
-    # restriction as muse and for the same reason.
+    # omp is crewmate/scout only for dispatch: the secondmate launch path that
+    # threads its tracked .omp/extensions primary extensions into a secondmate
+    # home is not wired yet, so it is refused for --secondmate here.
     omp) [ "$kind" != secondmate ] || return 1 ;;
   esac
   return 0

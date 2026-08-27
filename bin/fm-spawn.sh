@@ -1204,8 +1204,9 @@ launch_template() {
     muse) printf '%s' 'env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u FM_PI_HARNESS XDG_CONFIG_HOME=__MUSECONFIG__ XDG_DATA_HOME=__MUSEDATA__ MUSE_EXPERIMENTAL_FOREIGN_PERSONAL_CONTEXT_KILL=on __MUSEBIN__ --yolo __MODELFLAG____EFFORTFLAG__"$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     # omp (Oh My Pi, @oh-my-pi/pi-coding-agent): a divergent fork of pi-mono with
     # its own binary and flags, verified live 2026-08-24 (omp v18.0.4) as a
-    # CREWMATE/SCOUT adapter only - it has no primary watcher-supervision
-    # protocol yet (fm_control_harness_supports_kind refuses --secondmate).
+    # CREWMATE/SCOUT adapter only for dispatch - the secondmate launch path is
+    # not wired yet (fm_control_harness_supports_kind refuses --secondmate);
+    # omp's own primary supervision protocol lives at docs/supervision-protocols/omp.md.
     # -e __OMPEXT__ loads the per-task busy-state/turn-end extension written
     # below (bin/fm-busy-lib.sh source omp-ext), the same explicit-path
     # pattern as __PIEXT__: omp's native auto-discovery root moved to
@@ -1267,11 +1268,12 @@ if [ "$KIND" = secondmate ] && [ "$HARNESS" = muse ]; then
   echo "error: muse is a verified crewmate/scout adapter only and cannot run a secondmate; it has no primary supervision protocol. Select a harness verified for secondmates." >&2
   exit 1
 fi
-# omp is verified as a CREWMATE/SCOUT adapter only, for the identical reason:
-# no primary watcher-supervision protocol exists yet under docs/supervision-protocols/,
-# so a spawned secondmate's turn-end guard and watch cycle could never be armed.
+# omp is verified as a CREWMATE/SCOUT adapter only for dispatch: it has a
+# primary supervision protocol (docs/supervision-protocols/omp.md) but the
+# secondmate launch path that would thread its tracked .omp extensions into a
+# secondmate home is not wired, so --secondmate stays refused here.
 if [ "$KIND" = secondmate ] && [ "$HARNESS" = omp ]; then
-  echo "error: omp is a verified crewmate/scout adapter only and cannot run a secondmate; it has no primary supervision protocol. Select a harness verified for secondmates." >&2
+  echo "error: omp is a verified crewmate/scout adapter only and cannot run a secondmate; the secondmate launch path is not wired for it. Select a harness verified for secondmates." >&2
   exit 1
 fi
 
